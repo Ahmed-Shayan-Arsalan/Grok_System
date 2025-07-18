@@ -126,6 +126,8 @@ if search_button:
                                 st.write(f"**Website:** {contractor.website}")
                             if contractor.address:
                                 st.write(f"**Address:** {contractor.address}")
+                            if contractor.license_status:
+                                st.write(f"**License Status:** {contractor.license_status}")
                         
                         with col2:
                             st.markdown("**🔧 Services & Description**")
