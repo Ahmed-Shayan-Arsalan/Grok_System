@@ -26,6 +26,7 @@ class Contractor:
     services: str = ""
     rating: str = ""
     description: str = ""
+    license_status: str = ""
     reviews: List[Review] = None
     quality_score: float = 0.0
 
@@ -57,7 +58,7 @@ class GrokContractorSearch:
     
     def search_contractors(self, service_type: str, location: str = "", max_results: int = 15) -> List[Contractor]:
         """
-        Search for contractors using Grok API
+        Search for contractors using Grok-4 API (web search)
         """
         # Enhanced user prompt with explicit requirement for exactly 5 reviews (Prompt Engineering)
         user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
@@ -75,6 +76,7 @@ Address: [Physical Address]
 Services: [Services Offered]
 Rating: [Overall Rating like 4.8/5 or 4.8 stars]
 Description: [Brief Description, 1-2 sentences max]
+License Status: [Active/Inactive/Unknown, and license number if available]
 Reviews:
 - Reviewer: John S. | Rating: 5/5 | Review: "Excellent service, very professional" | Date: 2024-01-15
 - Reviewer: Sarah M. | Rating: 4/5 | Review: "Good work, arrived on time" | Date: 2024-01-10
@@ -87,12 +89,13 @@ CRITICAL REQUIREMENTS:
 2. All reviews must be real, with actual reviewer names, individual ratings, and specific review text. No placeholders or generic reviews.
 3. Each review should be on a separate line with the format: Reviewer: [Name] | Rating: [Rating] | Review: "[Review text, 1-2 sentences max]" | Date: [Date]
 4. Do NOT make up or pad reviews. Only use real, verifiable reviews.
-5. Continue this format for all contractors."""
+5. Each contractor MUST include their active license status (Active/Inactive/Unknown) and license number if available.
+6. Continue this format for all contractors."""
         
         try:
             # Single API call to get all contractor data
             response = self.client.chat.completions.create(
-                model="grok-3-mini-fast",
+                model="grok-4",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -150,6 +153,7 @@ CRITICAL REQUIREMENTS:
             'services': '',
             'rating': '',
             'description': '',
+            'license_status': '',
             'reviews': []
         }
         
@@ -173,7 +177,7 @@ CRITICAL REQUIREMENTS:
                     review = self._parse_single_review(line)
                     if review:
                         data['reviews'].append(review)
-                elif any(line.lower().startswith(field + ':') for field in ['name', 'phone', 'email', 'website', 'address', 'services', 'rating', 'description']):
+                elif any(line.lower().startswith(field + ':') for field in ['name', 'phone', 'email', 'website', 'address', 'services', 'rating', 'description', 'license status']):
                     reviews_section = False
                 else:
                     # Try to parse as a different review format
@@ -199,6 +203,8 @@ CRITICAL REQUIREMENTS:
                     data['rating'] = line.split(':', 1)[1].strip()
                 elif line.lower().startswith('description:'):
                     data['description'] = line.split(':', 1)[1].strip()
+                elif line.lower().startswith('license status:'):
+                    data['license_status'] = line.split(':', 1)[1].strip()
         
         return data
     
@@ -305,6 +311,7 @@ CRITICAL REQUIREMENTS:
                     "rating": contractor.rating,
                     "services": contractor.services,
                     "description": contractor.description,
+                    "license_status": contractor.license_status,
                     "reviews": [{"reviewer": r.reviewer_name, "rating": r.rating, "text": r.review_text} for r in contractor.reviews]
                 }
                 contractor_data.append(contractor_info)
