@@ -3,7 +3,7 @@ from grok_search import GrokContractorSearch
 
 # Set page config
 st.set_page_config(
-    page_title="SantoScore",
+    page_title="SantoScore v0.1",
     page_icon="🔧",
     layout="wide"
 )
@@ -48,8 +48,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main title
-st.title("SantoScore")
-st.markdown("SantoScore helps you find and compare contractors using real customer reviews, ratings, and up-to-date web data. Each contractor receives a Score (0-10) based on quality, reputation, and service.")
+st.title("SantoScore v0.1")
+st.markdown("SantoScore v0.1 helps you find and compare contractors using real customer reviews, ratings, and up-to-date web data. Each contractor receives a SantoScore v0.1 (0-10) based on quality, reputation, and service.")
 
 # Search form
 with st.form("search_form"):
@@ -164,4 +164,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("Score Contractor Search")
+st.markdown("SantoScore v0.1 Contractor Search")
