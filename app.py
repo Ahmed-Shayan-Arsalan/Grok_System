@@ -48,8 +48,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main title
-st.title("SantaScore")
-st.markdown("SantaScore helps you find and compare contractors using real customer reviews, ratings, and up-to-date web data. Each contractor receives a SantaScore (0-10) based on quality, reputation, and service.")
+st.title("SantoScore")
+st.markdown("SantoScore helps you find and compare contractors using real customer reviews, ratings, and up-to-date web data. Each contractor receives a Score (0-10) based on quality, reputation, and service.")
 
 # Search form
 with st.form("search_form"):
@@ -164,4 +164,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("SantaScore Contractor Search")
+st.markdown("Score Contractor Search")
