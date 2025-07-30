@@ -6,6 +6,8 @@ from email.mime.multipart import MIMEMultipart
 import os
 from dotenv import load_dotenv
 import time
+import re
+from urllib.parse import urlparse
 
 # Load environment variables
 load_dotenv()
@@ -59,6 +61,41 @@ SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 if not SENDER_EMAIL or not SENDER_PASSWORD:
     st.error("Email credentials not found. Please check your .env file.")
     st.stop()
+
+# Validation functions
+
+def is_valid_email(email):
+    if not email:
+        return False
+    pattern = r"^[\w\.-]+@[\w\.-]+\.\w{2,}$"
+    return re.match(pattern, email) is not None
+
+def is_valid_website(url):
+    if not url:
+        return False
+    try:
+        result = urlparse(url)
+        return all([result.scheme in ("http", "https"), result.netloc])
+    except Exception:
+        return False
+
+def is_valid_phone(phone):
+    if not phone:
+        return False
+    # Accepts (123) 456-7890, 123-456-7890, 1234567890, +1 123 456 7890, etc.
+    pattern = r"^(\+\d{1,3}[- ]?)?(\(?\d{3}\)?[- ]?)?\d{3}[- ]?\d{4}$"
+    return re.match(pattern, phone) is not None
+
+# Enhanced website validation function
+def is_website_safe_for_display(url):
+    """Additional validation for displaying websites to users"""
+    if not url or not url.strip():
+        return False, "No website provided"
+    
+    # Use the same validation as in grok_search.py
+    from grok_search import validate_website_safety
+    return validate_website_safety(url)
+
 # Function to send email
 def send_quote_request(contractor_name, contractor_email, user_email, problem_statement, send_to_business, contractor_details=None):
     try:
@@ -294,20 +331,29 @@ if st.session_state.search_results is not None:
                     <span class="rank-badge">#{i}</span>
                     {contractor.name}
                 </h3>
-                <p><strong>Quality Score:</strong> <span class="{score_class}">{contractor.quality_score:.1f}/10</span></p>
-                <p><strong>Overall Rating:</strong> {contractor.rating}</p>
+                <p><strong>SantoScore:</strong> <span class="{score_class}">{contractor.quality_score:.1f}/10</span></p>
             </div>
             """, unsafe_allow_html=True)
             # Contact information and Quote button
             col1, col2, col3 = st.columns([2, 2, 1])
             with col1:
                 st.markdown("**📞 Contact Information**")
-                if contractor.phone:
+                if is_valid_phone(contractor.phone):
                     st.write(f"**Phone:** {contractor.phone}")
-                if contractor.email:
+                else:
+                    st.write("**Phone:** N/A")
+                if is_valid_email(contractor.email):
                     st.write(f"**Email:** {contractor.email}")
+                else:
+                    st.write("**Email:** N/A")
                 if contractor.website:
-                    st.write(f"**Website:** {contractor.website}")
+                    is_safe, reason = is_website_safe_for_display(contractor.website)
+                    if is_safe:
+                        st.write(f"**Website:** {contractor.website}")
+                    else:
+                        st.write("**Website:** N/A (safety concerns)")
+                else:
+                    st.write("**Website:** N/A")
                 if contractor.address:
                     st.write(f"**Address:** {contractor.address}")
                 if contractor.license_status:
@@ -349,15 +395,19 @@ if st.session_state.search_results is not None:
                         if contractor.email and send_to_business:
                             st.info(f"Will be sent to: {contractor.email}")
                     # Action buttons
-                    button_col1, button_col2, button_col3 = st.columns([1, 1, 2])
+                    button_col1, button_col2 = st.columns([1, 1])
                     with button_col1:
                         if st.button("Send Quote Request", key=f"submit_{i}", type="primary"):
                             if not user_email or not problem_statement:
                                 st.error("Please fill in all required fields.")
+                            elif not is_valid_email(user_email):
+                                st.error("Please enter a valid email address.")
+                            elif send_to_business and contractor.email and not is_valid_email(contractor.email):
+                                st.error("This contractor's email is invalid. Cannot send to business.")
                             else:
                                 success, message = send_quote_request(
                                     contractor.name,
-                                    contractor.email,
+                                    contractor.email if is_valid_email(contractor.email) else None,
                                     user_email,
                                     problem_statement,
                                     send_to_business,
@@ -376,6 +426,25 @@ if st.session_state.search_results is not None:
                         if st.button("Cancel", key=f"cancel_{i}"):
                             st.session_state[f"show_quote_form_{i}"] = False
                             st.rerun()
+                    
+                    # Santo Electronics membership section
+                    st.markdown("---")
+                    
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        st.markdown("**If you are not a member, join us now!**")
+                        st.markdown("""
+                        <a href="https://www.santoelectronics.com/premium" target="_blank">
+                            <button style='background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; width: 100%;'>Signup</button>
+                        </a>
+                        """, unsafe_allow_html=True)
+                    with col2:
+                        st.markdown("**If you are a member, login here:**")
+                        st.markdown("""
+                        <a href="https://www.santoelectronics.com/account/login" target="_blank">
+                            <button style='background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; width: 100%;'>Login</button>
+                        </a>
+                        """, unsafe_allow_html=True)
                     st.markdown("---")
             # Reviews section
             st.markdown("**⭐ Customer Reviews**")
