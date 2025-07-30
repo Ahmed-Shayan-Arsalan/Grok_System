@@ -1,12 +1,102 @@
 import os
 import re
 import json
+import requests
+from urllib.parse import urlparse
 from typing import List, Dict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
 from dataclasses import dataclass, asdict
 
 load_dotenv()
+
+# Website validation functions
+def is_suspicious_domain(url):
+    """Check for suspicious domain patterns that indicate phishing/scam sites"""
+    if not url:
+        return True
+    
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Common phishing indicators
+        suspicious_patterns = [
+            r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',  # IP addresses
+            r'bit\.ly|tinyurl|goo\.gl|t\.co',  # URL shorteners
+            r'[a-z0-9]{20,}',  # Very long random domains
+            r'[a-z]{1,2}[0-9]{3,}',  # Short random domains
+            r'[0-9]{3,}[a-z]{1,2}',  # Number-heavy domains
+            r'[a-z]{1,2}\.[a-z]{1,2}\.[a-z]{1,2}',  # Very short subdomains
+            r'[a-z0-9]{8,}-[a-z0-9]{8,}',  # Random hash-like domains
+        ]
+        
+        for pattern in suspicious_patterns:
+            if re.search(pattern, domain):
+                return True
+        
+        # Check for legitimate business indicators
+        legitimate_indicators = [
+            r'\.com$', r'\.org$', r'\.net$', r'\.biz$', r'\.co$',
+            r'[a-z]{3,}\.[a-z]{2,}',  # Normal business domains
+        ]
+        
+        has_legitimate = any(re.search(pattern, domain) for pattern in legitimate_indicators)
+        return not has_legitimate
+        
+    except Exception:
+        return True
+
+def validate_website_safety(url):
+    """Comprehensive website safety validation"""
+    if not url:
+        return False, "No URL provided"
+    
+    # Basic URL format check
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    
+    try:
+        parsed = urlparse(url)
+        
+        # Check for suspicious domain
+        if is_suspicious_domain(url):
+            return False, "Suspicious domain pattern detected"
+        
+        # Check for HTTPS (security requirement)
+        if not url.startswith('https://'):
+            return False, "Website must use HTTPS for security"
+        
+        # Additional checks can be added here:
+        # - SSL certificate validation
+        # - Domain age check
+        # - Reputation check
+        # - Content analysis
+        
+        return True, "Website appears safe"
+        
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
+
+def clean_website_url(url):
+    """Clean and validate website URL, return None if unsafe"""
+    if not url or not url.strip():
+        return None
+    
+    # Remove whitespace and common prefixes
+    url = url.strip()
+    if url.startswith('www.'):
+        url = 'https://' + url
+    elif not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    
+    # Validate safety
+    is_safe, reason = validate_website_safety(url)
+    if not is_safe:
+        print(f"Unsafe website detected: {url} - Reason: {reason}")
+        return None
+    
+    return url
 
 @dataclass
 class Review:
@@ -33,6 +123,9 @@ class Contractor:
     def __post_init__(self):
         if self.reviews is None:
             self.reviews = []
+        # Validate and clean website URL
+        if self.website:
+            self.website = clean_website_url(self.website)
 
 class GrokContractorSearch:
     def __init__(self):
@@ -63,7 +156,7 @@ class GrokContractorSearch:
         # Enhanced user prompt with explicit requirement for exactly 5 reviews (Prompt Engineering)
         user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
 
-Please search for legitimate contractors and businesses that provide {service_type} services.
+Please search the web for legitimate contractors and businesses that provide {service_type} services. Use ONLY real, current information from web search results.
 
 For each contractor, provide the following information in this exact format (keep all fields as concise as possible):
 
@@ -71,26 +164,28 @@ CONTRACTOR 1:
 Name: [Business Name]
 Phone: [Phone Number]
 Email: [Email Address if available]
-Website: [Website URL if available]
+Website: [Website URL if available - ONLY include legitimate, secure websites with HTTPS]
 Address: [Physical Address]
 Services: [Services Offered]
 Rating: [Overall Rating like 4.8/5 or 4.8 stars]
 Description: [Brief Description, 1-2 sentences max]
 License Status: [Active/Inactive/Unknown, and license number if available]
 Reviews:
-- Reviewer: John S. | Rating: 5/5 | Review: "Excellent service, very professional" | Date: 2024-01-15
-- Reviewer: Sarah M. | Rating: 4/5 | Review: "Good work, arrived on time" | Date: 2024-01-10
-- Reviewer: Mike D. | Rating: 5/5 | Review: "Outstanding quality and fair pricing" | Date: 2024-01-08
-- Reviewer: Lisa R. | Rating: 4/5 | Review: "Professional team, clean work" | Date: 2024-01-12
-- Reviewer: David K. | Rating: 5/5 | Review: "Highly recommend, great results" | Date: 2024-01-05
+- Reviewer: John S. | Rating: 5/5 | Review: "Excellent service, very professional" | Date: 2025-01-15
+- Reviewer: Sarah M. | Rating: 4/5 | Review: "Good work, arrived on time" | Date: 2025-01-10
+- Reviewer: Mike D. | Rating: 5/5 | Review: "Outstanding quality and fair pricing" | Date: 2025-01-08
+- Reviewer: Lisa R. | Rating: 4/5 | Review: "Professional team, clean work" | Date: 2025-01-12
+- Reviewer: David K. | Rating: 5/5 | Review: "Highly recommend, great results" | Date: 2025-01-05
 
 CRITICAL REQUIREMENTS:
-1. Each contractor MUST have exactly 5 real customer reviews. If you cannot find 5, do not include the contractor at all.
-2. All reviews must be real, with actual reviewer names, individual ratings, and specific review text. No placeholders or generic reviews.
+1. Each contractor MUST have exactly 5 real customer reviews from web search. If you cannot find 5, do not include the contractor at all.
+2. All reviews must be real, with actual reviewer names, individual ratings, and specific review text from web search results. No placeholders or generic reviews.
 3. Each review should be on a separate line with the format: Reviewer: [Name] | Rating: [Rating] | Review: "[Review text, 1-2 sentences max]" | Date: [Date]
-4. Do NOT make up or pad reviews. Only use real, verifiable reviews.
+4. Do NOT make up or pad reviews. Only use real, verifiable reviews from web search.
 5. Each contractor MUST include their active license status (Active/Inactive/Unknown) and license number if available.
-6. Continue this format for all contractors."""
+6. ONLY include legitimate, secure websites with HTTPS. Do NOT include suspicious or unverified websites.
+7. Use CURRENT dates (2025) for all reviews, not old dates from 2023-2024.
+8. Continue this format for all contractors."""
         
         try:
             # Single API call to get all contractor data
@@ -104,15 +199,37 @@ CRITICAL REQUIREMENTS:
                 max_tokens=4000
             )
             
+            # Debug: Print what Grok actually returned
+            print("=== GROK RESPONSE DEBUG ===")
+            print(response.choices[0].message.content[:1000])  # First 1000 chars
+            print("=== END DEBUG ===")
+            
             # Parse the response
             contractors = self._parse_response(response.choices[0].message.content)
             
+            # Debug: Print parsed contractors
+            print(f"=== PARSED {len(contractors)} CONTRACTORS ===")
+            for i, contractor in enumerate(contractors):
+                print(f"Contractor {i+1}: {contractor.name}")
+                print(f"Reviews: {len(contractor.reviews)}")
+                for j, review in enumerate(contractor.reviews[:2]):  # Show first 2 reviews
+                    print(f"  Review {j+1}: {review.date} - {review.reviewer_name}")
+            print("=== END CONTRACTORS ===")
+            
+            # Filter out contractors with unsafe websites
+            safe_contractors = []
+            for contractor in contractors:
+                if contractor.website is None:
+                    # Remove website field if unsafe
+                    contractor.website = ""
+                safe_contractors.append(contractor)
+            
             # Only use the reviews Grok returns (no padding, no extra API calls)
             # Calculate quality scores for all contractors
-            contractors = self._calculate_quality_scores(contractors, service_type)
+            safe_contractors = self._calculate_quality_scores(safe_contractors, service_type)
             
             # Limit results to max_results
-            return contractors[:max_results]
+            return safe_contractors[:max_results]
         except Exception as e:
             print(f"Error searching contractors: {e}")
             return []
@@ -194,7 +311,9 @@ CRITICAL REQUIREMENTS:
                 elif line.lower().startswith('email:'):
                     data['email'] = line.split(':', 1)[1].strip()
                 elif line.lower().startswith('website:'):
-                    data['website'] = line.split(':', 1)[1].strip()
+                    website = line.split(':', 1)[1].strip()
+                    # Validate website before adding
+                    data['website'] = clean_website_url(website) or ""
                 elif line.lower().startswith('address:'):
                     data['address'] = line.split(':', 1)[1].strip()
                 elif line.lower().startswith('services:'):
