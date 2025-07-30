@@ -469,4 +469,4 @@ elif st.session_state.search_results is None:
 
 # Footer
 st.markdown("---")
-st.markdown("SantoScore v0.2 Contractor Search")
+st.markdown("SantoScore v1.0 Contractor Search")
