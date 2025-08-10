@@ -97,7 +97,7 @@ def is_website_safe_for_display(url):
     return validate_website_safety(url)
 
 # Function to send email
-def send_quote_request(contractor_name, contractor_email, user_email, problem_statement, send_to_business, contractor_details=None):
+def send_quote_request(contractor_name, contractor_email, user_email, problem_statement, send_to_business, contractor_details=None, search_params=None):
     try:
         # --- Main email to sales@santoelectronics.com (unchanged) ---
         msg = MIMEMultipart('alternative')
@@ -125,6 +125,31 @@ def send_quote_request(contractor_name, contractor_email, user_email, problem_st
                     {f'<p><strong>Overall Rating:</strong> <span style="color: #ffc107; font-weight: bold;">{contractor_details.rating}</span></p>' if contractor_details and contractor_details.rating else ''}
                     {f'<p style="color: #dc3545; font-weight: bold;">Note: This business could not be emailed directly as no business email was found.</p>' if not contractor_email else ''}
                 </div>
+                
+                {f'''
+                <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <h3 style="color: #17a2b8; margin-top: 0;">🔍 Search Details</h3>
+                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                        <div style="flex: 1; min-width: 150px;">
+                            <p style="margin: 0;"><strong>Service Type:</strong></p>
+                            <p style="background-color: #e3f2fd; padding: 8px; border-radius: 5px; margin: 5px 0; color: #1565c0; font-weight: bold;">{search_params.get('service_type', 'N/A')}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <p style="margin: 0;"><strong>Location:</strong></p>
+                            <p style="background-color: #e8f5e8; padding: 8px; border-radius: 5px; margin: 5px 0; color: #2e7d32; font-weight: bold;">{search_params.get('location', 'N/A')}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <p style="margin: 0;"><strong>Results Found:</strong></p>
+                            <p style="background-color: #fff3e0; padding: 8px; border-radius: 5px; margin: 5px 0; color: #ef6c00; font-weight: bold;">{search_params.get('actual_results', search_params.get('max_results', 'N/A'))} contractors</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; text-align: center;">
+                        <p style="margin: 0; color: #666; font-size: 0.9em;">
+                            <strong>Search performed on:</strong> {search_params.get('search_timestamp', 'N/A')}
+                        </p>
+                    </div>
+                </div>
+                ''' if search_params else ''}
                 
                 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     <h3 style="color: #dc3545; margin-top: 0;">👤 Customer Information</h3>
@@ -178,6 +203,16 @@ def send_quote_request(contractor_name, contractor_email, user_email, problem_st
         {"Quality Score: " + str(contractor_details.quality_score) + "/10" if contractor_details and hasattr(contractor_details, 'quality_score') else ""}
         {"Overall Rating: " + contractor_details.rating if contractor_details and contractor_details.rating else ""}
         {"NOTE: This business could not be emailed directly as no business email was found." if not contractor_email else ""}
+        
+        {f'''
+        SEARCH DETAILS:
+        ---------------
+        Service Type: {search_params.get('service_type', 'N/A')}
+        Location: {search_params.get('location', 'N/A')}
+        Results Found: {search_params.get('actual_results', search_params.get('max_results', 'N/A'))} contractors
+        Search performed on: {search_params.get('search_timestamp', 'N/A')}
+        
+        ''' if search_params else ''}
         
         CUSTOMER INFORMATION:
         ---------------------
@@ -405,13 +440,19 @@ if st.session_state.search_results is not None:
                             elif send_to_business and contractor.email and not is_valid_email(contractor.email):
                                 st.error("This contractor's email is invalid. Cannot send to business.")
                             else:
+                                # Get search parameters safely and add actual results count
+                                search_params = st.session_state.get('search_params', {}).copy()
+                                search_params['actual_results'] = len(contractors)
+                                search_params['search_timestamp'] = time.strftime("%Y-%m-%d %H:%M:%S")
+                                
                                 success, message = send_quote_request(
                                     contractor.name,
                                     contractor.email if is_valid_email(contractor.email) else None,
                                     user_email,
                                     problem_statement,
                                     send_to_business,
-                                    contractor  # Pass all contractor details
+                                    contractor,  # Pass all contractor details
+                                    search_params  # Pass search parameters
                                 )
                                 if success:
                                     st.success(message)
