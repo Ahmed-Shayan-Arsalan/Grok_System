@@ -419,7 +419,7 @@ CRITICAL REQUIREMENTS:
 
     def _calculate_quality_scores(self, contractors: List[Contractor], service_type: str) -> List[Contractor]:
         """
-        Calculate quality scores for contractors using Grok API (now using grok-3-fast for speed)
+        Calculate quality scores for contractors using Grok API (using grok-4 for best quality)
         """
         try:
             # Prepare contractor data for scoring
@@ -456,7 +456,7 @@ EXPLANATION: [Brief explanation of why this score was given, 1-2 sentences max]
 Continue for all contractors."""
             
             response = self.client.chat.completions.create(
-                model="grok-3-fast",
+                model="grok-4",
                 messages=[
                     {"role": "system", "content": "You are a professional contractor evaluation expert. Provide objective scores based on the information provided."},
                     {"role": "user", "content": scoring_prompt}
