@@ -309,6 +309,23 @@ with st.form("search_form"):
     with col3:
         max_results = st.selectbox("Results", options=[5, 10, 15, 20], index=0)
     
+    # Advanced options
+    st.markdown("**⚡ Search Options:**")
+    col_opt1, col_opt2 = st.columns([1, 1])
+    
+    with col_opt1:
+        skip_reviews = st.checkbox(
+            "⚡ Fast Search (Skip detailed review extraction)", 
+            value=False,
+            help="Enable for faster searches. Skips detailed customer review extraction and validation."
+        )
+    
+    with col_opt2:
+        if skip_reviews:
+            st.caption("🚀 Fast mode: ~30-50% faster search")
+        else:
+            st.caption("🔍 Standard mode: Full review analysis")
+    
     search_button = st.form_submit_button("🔍 Search Contractors", type="primary")
 
 # Handle search
@@ -316,29 +333,59 @@ if search_button:
     if not service_type.strip():
         st.error("Please enter a service type to search for contractors.")
     else:
-        with st.spinner(f"Searching for {service_type} contractors..."):
-            try:
-                # Store search parameters
-                st.session_state.search_params = {
-                    'service_type': service_type.strip(),
-                    'location': location.strip(),
-                    'max_results': max_results
-                }
-                # Search for contractors
-                contractors = grok_search.search_contractors(
-                    service_type=service_type.strip(),
-                    location=location.strip(),
-                    max_results=max_results
-                )
-                if contractors:
-                    # Sort contractors by quality score (highest first)
-                    contractors.sort(key=lambda x: x.quality_score, reverse=True)
-                    st.session_state.search_results = contractors
-                else:
-                    st.session_state.search_results = []
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-                st.write("Please try again or check your API key.")
+        # Create status popup container
+        status_container = st.empty()
+        
+        def update_status(message, status_type="info"):
+            """Update the status popup with current step"""
+            with status_container.container():
+                if status_type == "info":
+                    st.info(f"🔄 **Processing Search Request**\n\n{message}")
+                elif status_type == "success":
+                    st.success(f"✅ **Search Complete**\n\n{message}")
+                elif status_type == "error":
+                    st.error(f"❌ **Error**\n\n{message}")
+        
+        try:
+            # Store search parameters
+            st.session_state.search_params = {
+                'service_type': service_type.strip(),
+                'location': location.strip(),
+                'max_results': max_results,
+                'skip_reviews': skip_reviews
+            }
+            
+            # Search for contractors with status updates
+            contractors = grok_search.search_contractors(
+                service_type=service_type.strip(),
+                location=location.strip(),
+                max_results=max_results,
+                status_callback=update_status,
+                skip_reviews=skip_reviews
+            )
+            
+            if contractors:
+                # Status update: Sorting and preparing results
+                update_status("📊 Sorting contractors by SantoScore and preparing results...", "info")
+                
+                # Sort contractors by quality score (highest first)
+                contractors.sort(key=lambda x: x.quality_score, reverse=True)
+                st.session_state.search_results = contractors
+                
+                # Status update: Ready to display
+                update_status("🎯 Results ready! Displaying your contractor matches...", "success")
+                
+                # Brief pause to show completion message, then clear
+                time.sleep(1)
+                status_container.empty()
+            else:
+                st.session_state.search_results = []
+                # Clear status popup and show no results
+                status_container.empty()
+                
+        except Exception as e:
+            update_status(f"An error occurred: {str(e)}", "error")
+            st.write("Please try again or check your API key.")
 
 # Display results from session state
 if st.session_state.search_results is not None:
