@@ -314,17 +314,17 @@ with st.form("search_form"):
     col_opt1, col_opt2 = st.columns([1, 1])
     
     with col_opt1:
-        skip_reviews = st.checkbox(
-            "⚡ Fast Search (Skip detailed review extraction)", 
+        check_fake_reviews = st.checkbox(
+            "🔍 Check for fake reviews", 
             value=True,
-            help="Enable for faster searches. Skips detailed customer review extraction and validation."
+            help="Enable detailed review analysis and validation to detect fake reviews. May take longer but provides more accurate results."
         )
     
     with col_opt2:
-        if skip_reviews:
-            st.caption("🚀 Fast mode: ~30-50% faster search")
-        else:
+        if check_fake_reviews:
             st.caption("🔍 Standard mode: Full review analysis")
+        else:
+            st.caption("🚀 Fast mode: ~30-50% faster search")
     
     search_button = st.form_submit_button("🔍 Search Contractors", type="primary")
 
@@ -352,7 +352,7 @@ if search_button:
                 'service_type': service_type.strip(),
                 'location': location.strip(),
                 'max_results': max_results,
-                'skip_reviews': skip_reviews
+                'skip_reviews': not check_fake_reviews
             }
             
             # Search for contractors with status updates
@@ -361,7 +361,7 @@ if search_button:
                 location=location.strip(),
                 max_results=max_results,
                 status_callback=update_status,
-                skip_reviews=skip_reviews
+                skip_reviews=not check_fake_reviews
             )
             
             if contractors:
