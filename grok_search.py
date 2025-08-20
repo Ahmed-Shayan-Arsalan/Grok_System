@@ -155,7 +155,7 @@ class GrokContractorSearch:
         """
         # Build prompt based on whether reviews are needed
         if skip_reviews:
-            # Fast search prompt - no detailed reviews required
+            # Fast search prompt - includes reviews but without extensive validation requirements
             user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
 
 Please search the web for legitimate contractors and businesses that provide {service_type} services. Use ONLY real, current information from web search results.
@@ -172,9 +172,13 @@ Services: [Services Offered]
 Rating: [Overall Rating like 4.8/5 or 4.8 stars]
 Description: [Brief Description, 1-2 sentences max]
 License Status: [Active/Inactive/Unknown, and license number if available]
+Reviews:
+- Reviewer: John S. | Rating: 5/5 | Review: "Excellent service, very professional" | Date: 2025-01-15
+- Reviewer: Sarah M. | Rating: 4/5 | Review: "Good work, arrived on time" | Date: 2025-01-10
+- Reviewer: Mike D. | Rating: 5/5 | Review: "Outstanding quality and fair pricing" | Date: 2025-01-08
 
 CRITICAL REQUIREMENTS:
-1. Focus on basic contractor information and contact details.
+1. Include 3-5 customer reviews per contractor from web search if available.
 2. Each contractor MUST include their active license status (Active/Inactive/Unknown) and license number if available.
 3. ONLY include legitimate, secure websites with HTTPS. Do NOT include suspicious or unverified websites.
 4. Continue this format for all contractors."""
@@ -241,12 +245,12 @@ CRITICAL REQUIREMENTS:
             # Parse the response
             contractors = self._parse_response(response.choices[0].message.content)
             
-            # Status update: Extracting reviews (conditional)
+            # Status update: Processing reviews (conditional)
             if status_callback:
                 if skip_reviews:
-                    status_callback("⚡ Fast processing - skipping detailed review extraction...", "info")
+                    status_callback("⚡ Fast mode - processing reviews without fake review validation...", "info")
                 else:
-                    status_callback("⭐ Extracting customer reviews and ratings...", "info")
+                    status_callback("⭐ Full mode - extracting and validating customer reviews...", "info")
             
             # Debug: Print parsed contractors
             print(f"=== PARSED {len(contractors)} CONTRACTORS ===")
@@ -260,9 +264,9 @@ CRITICAL REQUIREMENTS:
             # Status update: Validating contractor information
             if status_callback:
                 if skip_reviews:
-                    status_callback("🔒 Quick validation of contractor websites and contact info...", "info")
+                    status_callback("🔒 Fast validation of contractor websites and contact info...", "info")
                 else:
-                    status_callback("🔒 Validating contractor websites and contact information...", "info")
+                    status_callback("🔒 Full validation of contractor websites, contact info, and review authenticity...", "info")
             
             # Filter out contractors with unsafe websites
             safe_contractors = []
@@ -275,9 +279,9 @@ CRITICAL REQUIREMENTS:
             # Status update: Calculating quality scores
             if status_callback:
                 if skip_reviews:
-                    status_callback("⭐ Calculating SantoScores (using basic contractor data)...", "info")
+                    status_callback("⭐ Calculating SantoScores (fast mode with basic review data)...", "info")
                 else:
-                    status_callback("⭐ Calculating SantoScores (using full review analysis)...", "info")
+                    status_callback("⭐ Calculating SantoScores (full mode with validated review analysis)...", "info")
             
             # Only use the reviews Grok returns (no padding, no extra API calls)
             # Calculate quality scores for all contractors
@@ -286,9 +290,9 @@ CRITICAL REQUIREMENTS:
             # Status update: Finalizing results
             if status_callback:
                 if skip_reviews:
-                    status_callback("✅ Fast search completed successfully!", "success")
+                    status_callback("✅ Fast search with reviews completed successfully!", "success")
                 else:
-                    status_callback("✅ Comprehensive search completed successfully!", "success")
+                    status_callback("✅ Comprehensive search with full review validation completed successfully!", "success")
             
             # Limit results to max_results
             return safe_contractors[:max_results]
