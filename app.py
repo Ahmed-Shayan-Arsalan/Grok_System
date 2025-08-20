@@ -316,7 +316,7 @@ with st.form("search_form"):
     with col_opt1:
         skip_reviews = st.checkbox(
             "⚡ Fast Search (Skip detailed review extraction)", 
-            value=False,
+            value=True,
             help="Enable for faster searches. Skips detailed customer review extraction and validation."
         )
     
