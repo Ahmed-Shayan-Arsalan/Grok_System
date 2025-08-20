@@ -149,12 +149,38 @@ class GrokContractorSearch:
             print(f"Error loading system prompt: {e}")
             return "You are a contractor search specialist. Help users find legitimate contractors and businesses."
     
-    def search_contractors(self, service_type: str, location: str = "", max_results: int = 15) -> List[Contractor]:
+    def search_contractors(self, service_type: str, location: str = "", max_results: int = 15, status_callback=None, skip_reviews: bool = False) -> List[Contractor]:
         """
         Search for contractors using Grok-4 API (web search)
         """
-        # Enhanced user prompt with explicit requirement for exactly 5 reviews (Prompt Engineering)
-        user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
+        # Build prompt based on whether reviews are needed
+        if skip_reviews:
+            # Fast search prompt - no detailed reviews required
+            user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
+
+Please search the web for legitimate contractors and businesses that provide {service_type} services. Use ONLY real, current information from web search results.
+
+For each contractor, provide the following information in this exact format (keep all fields as concise as possible):
+
+CONTRACTOR 1:
+Name: [Business Name]
+Phone: [Phone Number]
+Email: [Email Address if available]
+Website: [Website URL if available - ONLY include legitimate, secure websites with HTTPS]
+Address: [Physical Address]
+Services: [Services Offered]
+Rating: [Overall Rating like 4.8/5 or 4.8 stars]
+Description: [Brief Description, 1-2 sentences max]
+License Status: [Active/Inactive/Unknown, and license number if available]
+
+CRITICAL REQUIREMENTS:
+1. Focus on basic contractor information and contact details.
+2. Each contractor MUST include their active license status (Active/Inactive/Unknown) and license number if available.
+3. ONLY include legitimate, secure websites with HTTPS. Do NOT include suspicious or unverified websites.
+4. Continue this format for all contractors."""
+        else:
+            # Standard prompt with detailed reviews (original)
+            user_prompt = f"""I need to find {max_results} {service_type} contractors{' in ' + location if location else ''}.
 
 Please search the web for legitimate contractors and businesses that provide {service_type} services. Use ONLY real, current information from web search results.
 
@@ -188,6 +214,10 @@ CRITICAL REQUIREMENTS:
 8. Continue this format for all contractors."""
         
         try:
+            # Status update: Starting web search
+            if status_callback:
+                status_callback("🔍 Searching the web for contractors...", "info")
+            
             # Single API call to get all contractor data
             response = self.client.chat.completions.create(
                 model="grok-4",
@@ -199,6 +229,10 @@ CRITICAL REQUIREMENTS:
                 max_tokens=4000
             )
             
+            # Status update: Processing results
+            if status_callback:
+                status_callback("📋 Processing contractor information...", "info")
+            
             # Debug: Print what Grok actually returned
             print("=== GROK RESPONSE DEBUG ===")
             print(response.choices[0].message.content[:1000])  # First 1000 chars
@@ -206,6 +240,13 @@ CRITICAL REQUIREMENTS:
             
             # Parse the response
             contractors = self._parse_response(response.choices[0].message.content)
+            
+            # Status update: Extracting reviews (conditional)
+            if status_callback:
+                if skip_reviews:
+                    status_callback("⚡ Fast processing - skipping detailed review extraction...", "info")
+                else:
+                    status_callback("⭐ Extracting customer reviews and ratings...", "info")
             
             # Debug: Print parsed contractors
             print(f"=== PARSED {len(contractors)} CONTRACTORS ===")
@@ -216,6 +257,13 @@ CRITICAL REQUIREMENTS:
                     print(f"  Review {j+1}: {review.date} - {review.reviewer_name}")
             print("=== END CONTRACTORS ===")
             
+            # Status update: Validating contractor information
+            if status_callback:
+                if skip_reviews:
+                    status_callback("🔒 Quick validation of contractor websites and contact info...", "info")
+                else:
+                    status_callback("🔒 Validating contractor websites and contact information...", "info")
+            
             # Filter out contractors with unsafe websites
             safe_contractors = []
             for contractor in contractors:
@@ -224,9 +272,23 @@ CRITICAL REQUIREMENTS:
                     contractor.website = ""
                 safe_contractors.append(contractor)
             
+            # Status update: Calculating quality scores
+            if status_callback:
+                if skip_reviews:
+                    status_callback("⭐ Calculating SantoScores (using basic contractor data)...", "info")
+                else:
+                    status_callback("⭐ Calculating SantoScores (using full review analysis)...", "info")
+            
             # Only use the reviews Grok returns (no padding, no extra API calls)
             # Calculate quality scores for all contractors
             safe_contractors = self._calculate_quality_scores(safe_contractors, service_type)
+            
+            # Status update: Finalizing results
+            if status_callback:
+                if skip_reviews:
+                    status_callback("✅ Fast search completed successfully!", "success")
+                else:
+                    status_callback("✅ Comprehensive search completed successfully!", "success")
             
             # Limit results to max_results
             return safe_contractors[:max_results]
